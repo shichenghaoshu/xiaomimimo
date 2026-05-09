@@ -37,6 +37,11 @@ const DEFAULT_VLLM_FLASH_MODEL: &str = "deepseek-ai/DeepSeek-V4-Flash";
 const DEFAULT_VLLM_BASE_URL: &str = "http://localhost:8000/v1";
 const DEFAULT_OLLAMA_MODEL: &str = "deepseek-coder:1.3b";
 const DEFAULT_OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
+const DEFAULT_XIAOMI_BASE_URL: &str = "https://api.xiaomimimo.com/v1";
+const DEFAULT_XIAOMI_MODEL: &str = "mimo-v2.5-pro";
+const DEFAULT_XIAOMI_PRO_MODEL: &str = "mimo-v2.5-pro";
+const DEFAULT_XIAOMI_OMNI_MODEL: &str = "mimo-v2-omni";
+const DEFAULT_XIAOMI_TTS_MODEL: &str = "mimo-v2.5-tts";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -51,6 +56,7 @@ pub enum ProviderKind {
     Sglang,
     Vllm,
     Ollama,
+    Xiaomi,
 }
 
 impl ProviderKind {
@@ -66,6 +72,7 @@ impl ProviderKind {
             Self::Sglang => "sglang",
             Self::Vllm => "vllm",
             Self::Ollama => "ollama",
+            Self::Xiaomi => "xiaomi",
         }
     }
 
@@ -81,6 +88,7 @@ impl ProviderKind {
             "sglang" | "sg-lang" => Some(Self::Sglang),
             "vllm" | "v-llm" => Some(Self::Vllm),
             "ollama" | "ollama-local" => Some(Self::Ollama),
+            "xiaomi" | "xiaomimimo" | "mimo" => Some(Self::Xiaomi),
             _ => None,
         }
     }
@@ -115,6 +123,8 @@ pub struct ProvidersToml {
     pub vllm: ProviderConfigToml,
     #[serde(default)]
     pub ollama: ProviderConfigToml,
+    #[serde(default)]
+    pub xiaomi: ProviderConfigToml,
 }
 
 impl ProvidersToml {
@@ -130,6 +140,7 @@ impl ProvidersToml {
             ProviderKind::Sglang => &self.sglang,
             ProviderKind::Vllm => &self.vllm,
             ProviderKind::Ollama => &self.ollama,
+            ProviderKind::Xiaomi => &self.xiaomi,
         }
     }
 
@@ -144,6 +155,7 @@ impl ProvidersToml {
             ProviderKind::Sglang => &mut self.sglang,
             ProviderKind::Vllm => &mut self.vllm,
             ProviderKind::Ollama => &mut self.ollama,
+            ProviderKind::Xiaomi => &mut self.xiaomi,
         }
     }
 }
@@ -297,7 +309,8 @@ pub struct LspConfigToml {
 }
 
 impl ConfigToml {
-    /// Merge project-level overrides from `$WORKSPACE/.deepseek/config.toml`.
+    /// Merge project-level overrides from `$WORKSPACE/.deepseek/config.toml`
+    /// (also checks `$WORKSPACE/.xiaomimimo/config.toml`).
     /// Only populated fields in `project` are applied; everything else
     /// keeps its global value. Provider-specific sub-tables are merged
     /// field-by-field so a project can set just `providers.deepseek.model`
@@ -358,6 +371,7 @@ impl ConfigToml {
         merge_provider_config(&mut self.providers.sglang, &project.providers.sglang);
         merge_provider_config(&mut self.providers.vllm, &project.providers.vllm);
         merge_provider_config(&mut self.providers.ollama, &project.providers.ollama);
+        merge_provider_config(&mut self.providers.xiaomi, &project.providers.xiaomi);
 
         if project.network.is_some() {
             self.network = project.network;
@@ -446,6 +460,12 @@ impl ConfigToml {
             "providers.ollama.model" => self.providers.ollama.model.clone(),
             "providers.ollama.http_headers" => {
                 serialize_http_headers(&self.providers.ollama.http_headers)
+            }
+            "providers.xiaomi.api_key" => self.providers.xiaomi.api_key.clone(),
+            "providers.xiaomi.base_url" => self.providers.xiaomi.base_url.clone(),
+            "providers.xiaomi.model" => self.providers.xiaomi.model.clone(),
+            "providers.xiaomi.http_headers" => {
+                serialize_http_headers(&self.providers.xiaomi.http_headers)
             }
             _ => self.extras.get(key).map(toml::Value::to_string),
         }
@@ -582,6 +602,20 @@ impl ConfigToml {
             "providers.ollama.http_headers" => {
                 self.providers.ollama.http_headers = parse_http_headers(value)?;
             }
+            "providers.xiaomi.api_key" => {
+                let value = value.to_string();
+                self.providers.xiaomi.api_key = Some(value.clone());
+                self.api_key = Some(value);
+            }
+            "providers.xiaomi.base_url" => {
+                self.providers.xiaomi.base_url = Some(value.to_string());
+            }
+            "providers.xiaomi.model" => {
+                self.providers.xiaomi.model = Some(value.to_string());
+            }
+            "providers.xiaomi.http_headers" => {
+                self.providers.xiaomi.http_headers = parse_http_headers(value)?;
+            }
             _ => {
                 self.extras
                     .insert(key.to_string(), toml::Value::String(value.to_string()));
@@ -592,7 +626,7 @@ impl ConfigToml {
 
     pub fn unset_value(&mut self, key: &str) -> Result<()> {
         match key {
-            "provider" => self.provider = ProviderKind::Deepseek,
+            "provider" => self.provider = ProviderKind::Xiaomi,
             "api_key" => self.api_key = None,
             "base_url" => self.base_url = None,
             "http_headers" => self.http_headers.clear(),
@@ -654,6 +688,10 @@ impl ConfigToml {
             "providers.ollama.base_url" => self.providers.ollama.base_url = None,
             "providers.ollama.model" => self.providers.ollama.model = None,
             "providers.ollama.http_headers" => self.providers.ollama.http_headers.clear(),
+            "providers.xiaomi.api_key" => self.providers.xiaomi.api_key = None,
+            "providers.xiaomi.base_url" => self.providers.xiaomi.base_url = None,
+            "providers.xiaomi.model" => self.providers.xiaomi.model = None,
+            "providers.xiaomi.http_headers" => self.providers.xiaomi.http_headers.clear(),
             _ => {
                 self.extras.remove(key);
             }
@@ -813,6 +851,18 @@ impl ConfigToml {
         if let Some(v) = serialize_http_headers(&self.providers.ollama.http_headers) {
             out.insert("providers.ollama.http_headers".to_string(), v);
         }
+        if let Some(v) = self.providers.xiaomi.api_key.as_ref() {
+            out.insert("providers.xiaomi.api_key".to_string(), redact_secret(v));
+        }
+        if let Some(v) = self.providers.xiaomi.base_url.as_ref() {
+            out.insert("providers.xiaomi.base_url".to_string(), v.clone());
+        }
+        if let Some(v) = self.providers.xiaomi.model.as_ref() {
+            out.insert("providers.xiaomi.model".to_string(), v.clone());
+        }
+        if let Some(v) = serialize_http_headers(&self.providers.xiaomi.http_headers) {
+            out.insert("providers.xiaomi.http_headers".to_string(), v);
+        }
 
         for (k, v) in &self.extras {
             out.insert(k.clone(), v.to_string());
@@ -843,7 +893,20 @@ impl ConfigToml {
         secrets: &Secrets,
     ) -> ResolvedRuntimeOptions {
         let env = EnvRuntimeOverrides::load();
-        let provider = cli.provider.or(env.provider).unwrap_or(self.provider);
+        let mut provider = cli.provider.or(env.provider).unwrap_or(self.provider);
+
+        // Auto-detect Xiaomi provider when XIAOMI_API_KEY is set but no
+        // DeepSeek credentials are available. Only kicks in when the provider
+        // was not explicitly chosen (i.e. defaulted to DeepSeek).
+        if provider == ProviderKind::Deepseek
+            && cli.provider.is_none()
+            && env.provider.is_none()
+            && self.provider == ProviderKind::Deepseek
+            && std::env::var("XIAOMI_API_KEY").is_ok_and(|k| !k.trim().is_empty())
+            && !std::env::var("DEEPSEEK_API_KEY").is_ok_and(|k| !k.trim().is_empty())
+        {
+            provider = ProviderKind::Xiaomi;
+        }
 
         let provider_cfg = self.providers.for_provider(provider);
         let root_deepseek_api_key = (provider == ProviderKind::Deepseek)
@@ -891,6 +954,18 @@ impl ConfigToml {
                 ProviderKind::Sglang => DEFAULT_SGLANG_BASE_URL.to_string(),
                 ProviderKind::Vllm => DEFAULT_VLLM_BASE_URL.to_string(),
                 ProviderKind::Ollama => DEFAULT_OLLAMA_BASE_URL.to_string(),
+                ProviderKind::Xiaomi => {
+                    // Auto-detect base URL from API key prefix:
+                    //   tp-* → Token Plan (https://token-plan-cn.xiaomimimo.com/v1)
+                    //   sk-* or other → Regular API (https://api.xiaomimimo.com/v1)
+                    if let Some(key) = &api_key
+                        && key.trim().starts_with("tp-")
+                    {
+                        "https://token-plan-cn.xiaomimimo.com/v1".to_string()
+                    } else {
+                        DEFAULT_XIAOMI_BASE_URL.to_string()
+                    }
+                }
             });
 
         let explicit_model = cli.model.is_some()
@@ -983,15 +1058,21 @@ fn merge_provider_config(target: &mut ProviderConfigToml, source: &ProviderConfi
     }
 }
 
-/// Load a project-level config from `$WORKSPACE/.deepseek/config.toml`.
-/// Returns `None` if the file doesn't exist or can't be parsed.
+/// Load a project-level config from `$WORKSPACE/.xiaomimimo/config.toml`,
+/// falling back to `$WORKSPACE/.deepseek/config.toml` for legacy projects.
+/// Returns `None` if neither file exists or can't be parsed.
 pub fn load_project_config(workspace: &Path) -> Option<ConfigToml> {
-    let path = workspace.join(".deepseek").join(CONFIG_FILE_NAME);
-    if !path.exists() {
-        return None;
+    for dir_name in &[".xiaomimimo", ".deepseek"] {
+        let path = workspace.join(dir_name).join(CONFIG_FILE_NAME);
+        if path.exists() {
+            if let Ok(raw) = fs::read_to_string(&path) {
+                if let Ok(parsed) = toml::from_str(&raw) {
+                    return Some(parsed);
+                }
+            }
+        }
     }
-    let raw = fs::read_to_string(&path).ok()?;
-    toml::from_str(&raw).ok()
+    None
 }
 
 fn normalize_model_for_provider(provider: ProviderKind, model: &str) -> String {
@@ -1044,6 +1125,10 @@ fn normalize_model_for_provider(provider: ProviderKind, model: &str) -> String {
             "deepseek-v4-flash" | "deepseek-v4flash" | "deepseek-chat" | "deepseek-reasoner"
             | "deepseek-r1" | "deepseek-v3" | "deepseek-v3.2",
         ) => DEFAULT_VLLM_FLASH_MODEL.to_string(),
+        (ProviderKind::Xiaomi, "mimo-pro" | "mimo-v2.5-pro" | "mimo-v2pro") => DEFAULT_XIAOMI_PRO_MODEL.to_string(),
+        (ProviderKind::Xiaomi, "mimo-flash" | "mimo-v2.5" | "mimo-v2-flash" | "mimo-v2.5-flash") => DEFAULT_XIAOMI_MODEL.to_string(),
+        (ProviderKind::Xiaomi, "mimo-omni" | "mimo-v2-omni" | "mimo-v2.5-omni") => DEFAULT_XIAOMI_OMNI_MODEL.to_string(),
+        (ProviderKind::Xiaomi, "mimo-tts" | "mimo-v2.5-tts" | "mimo-v2-tts") => DEFAULT_XIAOMI_TTS_MODEL.to_string(),
         _ => model.to_string(),
     }
 }
@@ -1059,6 +1144,7 @@ fn default_model_for_provider(provider: ProviderKind) -> &'static str {
         ProviderKind::Sglang => DEFAULT_SGLANG_MODEL,
         ProviderKind::Vllm => DEFAULT_VLLM_MODEL,
         ProviderKind::Ollama => DEFAULT_OLLAMA_MODEL,
+        ProviderKind::Xiaomi => DEFAULT_XIAOMI_MODEL,
     }
 }
 
@@ -1073,6 +1159,7 @@ fn default_base_url_for_provider(provider: ProviderKind) -> &'static str {
         ProviderKind::Sglang => DEFAULT_SGLANG_BASE_URL,
         ProviderKind::Vllm => DEFAULT_VLLM_BASE_URL,
         ProviderKind::Ollama => DEFAULT_OLLAMA_BASE_URL,
+        ProviderKind::Xiaomi => DEFAULT_XIAOMI_BASE_URL,
     }
 }
 
@@ -1232,7 +1319,9 @@ pub fn resolve_config_path(explicit: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(path) = explicit {
         return Ok(path);
     }
-    if let Ok(path) = std::env::var("DEEPSEEK_CONFIG_PATH") {
+    if let Ok(path) = std::env::var("XIAOMIMIMO_CONFIG_PATH")
+        .or_else(|_| std::env::var("DEEPSEEK_CONFIG_PATH"))
+    {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             return Ok(PathBuf::from(trimmed));
@@ -1243,7 +1332,15 @@ pub fn resolve_config_path(explicit: Option<PathBuf>) -> Result<PathBuf> {
 
 pub fn default_config_path() -> Result<PathBuf> {
     let home = dirs::home_dir().context("failed to resolve home directory for config path")?;
-    Ok(home.join(".deepseek").join(CONFIG_FILE_NAME))
+    // Prefer ~/.xiaomimimo for new installs; migrate from ~/.deepseek if absent.
+    let new_dir = home.join(".xiaomimimo");
+    let new_path = new_dir.join(CONFIG_FILE_NAME);
+    let legacy_path = home.join(".deepseek").join(CONFIG_FILE_NAME);
+    if !new_path.exists() && legacy_path.exists() {
+        let _ = std::fs::create_dir_all(&new_dir);
+        let _ = std::fs::copy(&legacy_path, &new_path);
+    }
+    Ok(new_path)
 }
 
 fn parse_bool(raw: &str) -> Result<bool> {
@@ -1327,6 +1424,7 @@ struct EnvRuntimeOverrides {
     sglang_base_url: Option<String>,
     vllm_base_url: Option<String>,
     ollama_base_url: Option<String>,
+    xiaomi_base_url: Option<String>,
 }
 
 impl EnvRuntimeOverrides {
@@ -1334,6 +1432,7 @@ impl EnvRuntimeOverrides {
         Self {
             provider: std::env::var("DEEPSEEK_PROVIDER")
                 .ok()
+                .or_else(|| std::env::var("XIAOMIMIMO_PROVIDER").ok())
                 .and_then(|v| ProviderKind::parse(&v)),
             model: std::env::var("DEEPSEEK_MODEL").ok(),
             output_mode: std::env::var("DEEPSEEK_OUTPUT_MODE").ok(),
@@ -1377,6 +1476,9 @@ impl EnvRuntimeOverrides {
             ollama_base_url: std::env::var("OLLAMA_BASE_URL")
                 .ok()
                 .filter(|v| !v.trim().is_empty()),
+            xiaomi_base_url: std::env::var("XIAOMI_BASE_URL")
+                .ok()
+                .filter(|v| !v.trim().is_empty()),
         }
     }
 
@@ -1393,6 +1495,7 @@ impl EnvRuntimeOverrides {
             ProviderKind::Sglang => self.sglang_base_url.clone(),
             ProviderKind::Vllm => self.vllm_base_url.clone(),
             ProviderKind::Ollama => self.ollama_base_url.clone(),
+            ProviderKind::Xiaomi => self.xiaomi_base_url.clone(),
         }
     }
 }
@@ -1447,6 +1550,8 @@ mod tests {
         vllm_base_url: Option<OsString>,
         ollama_api_key: Option<OsString>,
         ollama_base_url: Option<OsString>,
+        xiaomi_api_key: Option<OsString>,
+        xiaomi_base_url: Option<OsString>,
     }
 
     impl EnvGuard {
@@ -1474,6 +1579,8 @@ mod tests {
                 vllm_base_url: env::var_os("VLLM_BASE_URL"),
                 ollama_api_key: env::var_os("OLLAMA_API_KEY"),
                 ollama_base_url: env::var_os("OLLAMA_BASE_URL"),
+                xiaomi_api_key: env::var_os("XIAOMI_API_KEY"),
+                xiaomi_base_url: env::var_os("XIAOMI_BASE_URL"),
             };
             // Safety: test-only environment mutation guarded by a module mutex.
             unsafe {
@@ -1499,6 +1606,8 @@ mod tests {
                 env::remove_var("VLLM_BASE_URL");
                 env::remove_var("OLLAMA_API_KEY");
                 env::remove_var("OLLAMA_BASE_URL");
+                env::remove_var("XIAOMI_API_KEY");
+                env::remove_var("XIAOMI_BASE_URL");
             }
             guard
         }
@@ -1538,6 +1647,8 @@ mod tests {
                 Self::restore_var("VLLM_BASE_URL", self.vllm_base_url.take());
                 Self::restore_var("OLLAMA_API_KEY", self.ollama_api_key.take());
                 Self::restore_var("OLLAMA_BASE_URL", self.ollama_base_url.take());
+                Self::restore_var("XIAOMI_API_KEY", self.xiaomi_api_key.take());
+                Self::restore_var("XIAOMI_BASE_URL", self.xiaomi_base_url.take());
             }
         }
     }

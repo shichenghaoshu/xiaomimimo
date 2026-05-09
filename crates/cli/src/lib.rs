@@ -32,6 +32,7 @@ enum ProviderArg {
     Sglang,
     Vllm,
     Ollama,
+    Xiaomi,
 }
 
 impl From<ProviderArg> for ProviderKind {
@@ -46,16 +47,17 @@ impl From<ProviderArg> for ProviderKind {
             ProviderArg::Sglang => ProviderKind::Sglang,
             ProviderArg::Vllm => ProviderKind::Vllm,
             ProviderArg::Ollama => ProviderKind::Ollama,
+            ProviderArg::Xiaomi => ProviderKind::Xiaomi,
         }
     }
 }
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "deepseek",
+    name = "xiaomimimo",
     version = env!("DEEPSEEK_BUILD_VERSION"),
-    bin_name = "deepseek",
-    override_usage = "deepseek [OPTIONS] [PROMPT]\n       deepseek [OPTIONS] <COMMAND> [ARGS]"
+    bin_name = "xiaomimimo",
+    override_usage = "xiaomimimo [OPTIONS] [PROMPT]\n       xiaomimimo [OPTIONS] <COMMAND> [ARGS]"
 )]
 struct Cli {
     #[arg(long)]
@@ -504,7 +506,7 @@ fn run() -> Result<()> {
         Some(Commands::AppServer(args)) => run_app_server_command(args),
         Some(Commands::Completion { shell }) => {
             let mut cmd = Cli::command();
-            generate(shell, &mut cmd, "deepseek", &mut io::stdout());
+            generate(shell, &mut cmd, "xiaomimimo", &mut io::stdout());
             Ok(())
         }
         Some(Commands::Metrics(args)) => run_metrics_command(args),
@@ -675,11 +677,12 @@ fn provider_slot(provider: ProviderKind) -> &'static str {
         ProviderKind::Sglang => "sglang",
         ProviderKind::Vllm => "vllm",
         ProviderKind::Ollama => "ollama",
+        ProviderKind::Xiaomi => "xiaomi",
     }
 }
 
 /// Provider order used by the `auth list` and `auth status` outputs.
-const PROVIDER_LIST: [ProviderKind; 9] = [
+const PROVIDER_LIST: [ProviderKind; 10] = [
     ProviderKind::Deepseek,
     ProviderKind::NvidiaNim,
     ProviderKind::Openrouter,
@@ -689,6 +692,7 @@ const PROVIDER_LIST: [ProviderKind; 9] = [
     ProviderKind::Vllm,
     ProviderKind::Ollama,
     ProviderKind::Openai,
+    ProviderKind::Xiaomi,
 ];
 
 #[cfg(test)]
@@ -744,6 +748,7 @@ fn provider_env_vars(provider: ProviderKind) -> &'static [&'static str] {
         ProviderKind::Vllm => &["VLLM_API_KEY"],
         ProviderKind::Ollama => &["OLLAMA_API_KEY"],
         ProviderKind::Openai => &["OPENAI_API_KEY"],
+        ProviderKind::Xiaomi => &["XIAOMI_API_KEY"],
     }
 }
 
@@ -1327,7 +1332,7 @@ fn run_dispatcher_resume_picker(
 
     println!();
     println!("Windows note: enter a session id or prefix from the list above.");
-    println!("You can also run `deepseek resume --last` to skip this prompt.");
+    println!("You can also run `xiaomimimo resume --last` to skip this prompt.");
     print!("Session id/prefix (Enter to cancel): ");
     io::stdout().flush()?;
 
@@ -1390,9 +1395,10 @@ fn build_tui_command(
             | ProviderKind::Sglang
             | ProviderKind::Vllm
             | ProviderKind::Ollama
+            | ProviderKind::Xiaomi
     ) {
         bail!(
-            "The interactive TUI supports DeepSeek, NVIDIA NIM, OpenAI-compatible, OpenRouter, Novita, Fireworks, SGLang, vLLM, and Ollama providers. Remove --provider {} or use `deepseek model ...` for provider registry inspection.",
+            "The interactive TUI supports DeepSeek, NVIDIA NIM, OpenAI-compatible, OpenRouter, Novita, Fireworks, SGLang, vLLM, Ollama, and Xiaomi MiMo providers. Remove --provider {} or use `deepseek model ...` for provider registry inspection.",
             resolved_runtime.provider.as_str()
         );
     }
@@ -1413,6 +1419,10 @@ fn build_tui_command(
         cmd.env("DEEPSEEK_API_KEY", api_key);
         if resolved_runtime.provider == ProviderKind::Openai {
             cmd.env("OPENAI_API_KEY", api_key);
+        }
+        if resolved_runtime.provider == ProviderKind::Xiaomi {
+            cmd.env("XIAOMI_API_KEY", api_key);
+            cmd.env("XIAOMI_BASE_URL", &resolved_runtime.base_url);
         }
         let source = resolved_runtime
             .api_key_source
@@ -1456,7 +1466,7 @@ fn build_tui_command(
 fn exit_with_tui_status(status: std::process::ExitStatus) -> Result<()> {
     match status.code() {
         Some(code) => std::process::exit(code),
-        None => bail!("deepseek-tui terminated by signal"),
+        None => bail!("xiaomimimo-tui terminated by signal"),
     }
 }
 
@@ -1468,7 +1478,7 @@ fn delegate_simple_tui(args: Vec<String>) -> Result<()> {
         .map_err(|err| anyhow!("{}", tui_spawn_error(&tui, &err)))?;
     match status.code() {
         Some(code) => std::process::exit(code),
-        None => bail!("deepseek-tui terminated by signal"),
+        None => bail!("xiaomimimo-tui terminated by signal"),
     }
 }
 
@@ -1476,36 +1486,38 @@ fn tui_spawn_error(tui: &Path, err: &io::Error) -> String {
     format!(
         "failed to spawn companion TUI binary at {}: {err}\n\
 \n\
-The `deepseek` dispatcher found a `deepseek-tui` file, but the OS refused \
+The `xiaomimimo` dispatcher found a `xiaomimimo-tui` file, but the OS refused \
 to execute it. Common fixes:\n\
-  - Reinstall with `npm install -g deepseek-tui`, or run `deepseek update`.\n\
-  - On Windows, run `where deepseek` and `where deepseek-tui`; both should \
+  - Reinstall with `npm install -g xiaomimimo-tui`, or run `xiaomimimo update`.\n\
+  - On Windows, run `where xiaomimimo` and `where xiaomimimo-tui`; both should \
 come from the same install directory.\n\
-  - If you downloaded release assets manually, keep both `deepseek` and \
-`deepseek-tui` binaries together and make sure the TUI binary is executable.\n\
-  - Set DEEPSEEK_TUI_BIN to the absolute path of a working `deepseek-tui` \
+  - If you downloaded release assets manually, keep both `xiaomimimo` and \
+`xiaomimimo-tui` binaries together and make sure the TUI binary is executable.\n\
+  - Set XIAOMIMIMO_TUI_BIN to the absolute path of a working `xiaomimimo-tui` \
 binary.",
         tui.display()
     )
 }
 
-/// Resolve the sibling `deepseek-tui` executable next to the running
+/// Resolve the sibling `xiaomimimo-tui` executable next to the running
 /// dispatcher. Honours platform executable suffix (`.exe` on Windows) so
 /// the npm-distributed Windows package — which ships
-/// `bin/downloads/deepseek-tui.exe` — is found by `Path::exists` (#247).
+/// `bin/downloads/xiaomimimo-tui.exe` — is found by `Path::exists` (#247).
 ///
-/// `DEEPSEEK_TUI_BIN` is consulted first as an explicit override for
-/// custom installs and CI test layouts. On Windows we additionally try
-/// the suffix-less name as a fallback for users who already manually
-/// renamed the file before this fix landed.
+/// `XIAOMIMIMO_TUI_BIN` (and legacy `DEEPSEEK_TUI_BIN`) is consulted first
+/// as an explicit override for custom installs and CI test layouts. On
+/// Windows we additionally try the suffix-less name as a fallback for users
+/// who already manually renamed the file before this fix landed.
 fn locate_sibling_tui_binary() -> Result<PathBuf> {
-    if let Ok(override_path) = std::env::var("DEEPSEEK_TUI_BIN") {
+    if let Ok(override_path) = std::env::var("XIAOMIMIMO_TUI_BIN")
+        .or_else(|_| std::env::var("DEEPSEEK_TUI_BIN"))
+    {
         let candidate = PathBuf::from(override_path);
         if candidate.is_file() {
             return Ok(candidate);
         }
         bail!(
-            "DEEPSEEK_TUI_BIN points at {}, which is not a regular file.",
+            "XIAOMIMIMO_TUI_BIN points at {}, which is not a regular file.",
             candidate.display()
         );
     }
@@ -1516,41 +1528,51 @@ fn locate_sibling_tui_binary() -> Result<PathBuf> {
     }
 
     // Build a stable error path so the user sees the platform-correct
-    // expected name, not "deepseek-tui" on Windows.
-    let expected = current.with_file_name(format!("deepseek-tui{}", std::env::consts::EXE_SUFFIX));
+    // expected name, not "xiaomimimo-tui" on Windows.
+    let expected = current.with_file_name(format!("xiaomimimo-tui{}", std::env::consts::EXE_SUFFIX));
     bail!(
-        "Companion `deepseek-tui` binary not found at {}.\n\
+        "Companion `xiaomimimo-tui` binary not found at {}.\n\
 \n\
-The `deepseek` dispatcher delegates interactive sessions to a sibling \
-`deepseek-tui` binary. To fix this, install one of:\n\
-  • npm:    npm install -g deepseek-tui            (downloads both binaries)\n\
-  • cargo:  cargo install deepseek-tui-cli deepseek-tui --locked\n\
-  • GitHub Releases: download BOTH `deepseek-<platform>` AND \
-`deepseek-tui-<platform>` from https://github.com/Hmbown/DeepSeek-TUI/releases/latest \
+The `xiaomimimo` dispatcher delegates interactive sessions to a sibling \
+`xiaomimimo-tui` binary. To fix this, install one of:\n\
+  • npm:    npm install -g xiaomimimo-tui          (downloads both binaries)\n\
+  • cargo:  cargo install xiaomimimo-tui-cli xiaomimimo-tui --locked\n\
+  • GitHub Releases: download BOTH `xiaomimimo-<platform>` AND \
+`xiaomimimo-tui-<platform>` from https://github.com/Hmbown/DeepSeek-TUI/releases/latest \
 and place them in the same directory.\n\
 \n\
-Or set DEEPSEEK_TUI_BIN to the absolute path of an existing `deepseek-tui` binary.",
+Or set XIAOMIMIMO_TUI_BIN to the absolute path of an existing `xiaomimimo-tui` binary.",
         expected.display()
     );
 }
 
 /// Return the first existing sibling-binary path under any of the names
-/// `deepseek-tui` might use on this platform. Pure function to keep
-/// `locate_sibling_tui_binary` testable.
+/// `xiaomimimo-tui` (or legacy `deepseek-tui`) might use on this platform.
+/// Pure function to keep `locate_sibling_tui_binary` testable.
 fn sibling_tui_candidate(dispatcher: &Path) -> Option<PathBuf> {
     // Primary: platform-correct name. EXE_SUFFIX is "" on Unix and ".exe"
     // on Windows.
     let primary =
-        dispatcher.with_file_name(format!("deepseek-tui{}", std::env::consts::EXE_SUFFIX));
+        dispatcher.with_file_name(format!("xiaomimimo-tui{}", std::env::consts::EXE_SUFFIX));
     if primary.is_file() {
         return Some(primary);
+    }
+    // Legacy fallback: look for old `deepseek-tui` binary alongside new one.
+    let legacy =
+        dispatcher.with_file_name(format!("deepseek-tui{}", std::env::consts::EXE_SUFFIX));
+    if legacy.is_file() {
+        return Some(legacy);
     }
     // Windows fallback: a user who manually renamed `.exe` away (per the
     // workaround in #247) still launches successfully under the new code.
     if cfg!(windows) {
-        let suffixless = dispatcher.with_file_name("deepseek-tui");
+        let suffixless = dispatcher.with_file_name("xiaomimimo-tui");
         if suffixless.is_file() {
             return Some(suffixless);
+        }
+        let legacy_suffixless = dispatcher.with_file_name("deepseek-tui");
+        if legacy_suffixless.is_file() {
+            return Some(legacy_suffixless);
         }
     }
     None

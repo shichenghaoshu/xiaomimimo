@@ -1,7 +1,7 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║                         DeepSeek TUI Configuration                            ║
+# ║                         xiaomimimo Configuration                              ║
 # ║                                                                              ║
-# ║  Unofficial CLI for DeepSeek Platform - Not affiliated with DeepSeek Inc.     ║
+# ║    Rust-native AI Agent Client for Xiaomi MiMo — TUI + GUI, 1M Context       ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # See `docs/CONFIGURATION.md` for how config is loaded (profiles, env overrides, etc.).
@@ -13,12 +13,12 @@
 # `[providers.*]` sections near the bottom of
 # this file — keeping both stored at once means `/provider deepseek` and
 # `/provider nvidia-nim` (or `--provider openai`, `--provider fireworks`,
-# `/provider sglang`, `/provider vllm`, `/provider ollama`) toggle without having to
+# `/provider sglang`, `/provider vllm`, `/provider ollama`, `/provider xiaomi`) toggle without having to
 # re-enter keys. Top-level `api_key` / `base_url` are still read as DeepSeek
 # defaults when `[providers.deepseek]` is absent (backward compatibility).
-provider = "deepseek" # deepseek | deepseek-cn | nvidia-nim | openai | openrouter | novita | fireworks | sglang | vllm | ollama
-api_key = "YOUR_DEEPSEEK_API_KEY" # must be non-empty
-base_url = "https://api.deepseek.com/beta"
+provider = "xiaomi" # deepseek | nvidia-nim | openai | openrouter | novita | fireworks | sglang | vllm | ollama | xiaomi
+# api_key = "YOUR_XIAOMI_API_KEY"
+# base_url = "https://api.xiaomimimo.com/v1"
 # provider = "deepseek-cn"                       # mainland China preset (official https://api.deepseek.com)
 # base_url = "https://api.deepseek.com"         # opt out of DeepSeek beta features
 # Optional custom model request headers for OpenAI-compatible gateways.
@@ -61,13 +61,13 @@ cost_currency = "usd" # usd | cny
 # ─────────────────────────────────────────────────────────────────────────────────
 # Paths
 # ─────────────────────────────────────────────────────────────────────────────────
-skills_dir = "~/.deepseek/skills"
-mcp_config_path = "~/.deepseek/mcp.json"
-notes_path = "~/.deepseek/notes.txt"
+skills_dir = "~/.xiaomimimo/skills"
+mcp_config_path = "~/.xiaomimimo/mcp.json"
+notes_path = "~/.xiaomimimo/notes.txt"
 
-memory_path = "~/.deepseek/memory.md"
+memory_path = "~/.xiaomimimo/memory.md"
 
-# instructions = ["./AGENTS.md", "~/.deepseek/global.md"]
+# instructions = ["./AGENTS.md", "~/.xiaomimimo/global.md"]
 #
 # Optional list of additional instruction files concatenated into the
 # system prompt in declared order (#454). Useful for layering
@@ -75,7 +75,7 @@ memory_path = "~/.deepseek/memory.md"
 # is expanded so `~` and env vars work; missing files are skipped with
 # a tracing warning. Files are capped at 100 KiB per entry.
 #
-# Project-level config (.deepseek/config.toml in the workspace) replaces
+# Project-level config (.xiaomimimo/config.toml in the workspace) replaces
 # the user-level array wholesale rather than merging — list `~/global.md`
 # inside the project array if you want both. An explicit empty array
 # (`instructions = []`) clears the user list for the current repo.
@@ -163,6 +163,7 @@ max_subagents = 10 # optional (1-20)
 #   SGLang:    SGLANG_BASE_URL, SGLANG_MODEL, optional SGLANG_API_KEY
 #   vLLM:      VLLM_BASE_URL, VLLM_MODEL, optional VLLM_API_KEY
 #   Ollama:    OLLAMA_BASE_URL, OLLAMA_MODEL, optional OLLAMA_API_KEY
+#   Xiaomi MiMo: XIAOMI_API_KEY, XIAOMI_BASE_URL
 
 # DeepSeek Platform (https://platform.deepseek.com)
 [providers.deepseek]
@@ -207,6 +208,12 @@ max_subagents = 10 # optional (1-20)
 # base_url = "http://localhost:11434/v1"
 # model = "deepseek-coder:1.3b"             # or any local Ollama tag
 
+# Xiaomi MiMo (https://api.xiaomimimo.com/v1)
+[providers.xiaomi]
+# api_key = "YOUR_XIAOMI_API_KEY"
+# base_url = "https://api.xiaomimimo.com/v1"
+# model = "mimo-v2.5-pro"                   # 1M context default; also mimo-v2.5 (262K), mimo-v2-omni (vision), mimo-v2.5-tts
+
 # ─────────────────────────────────────────────────────────────────────────────────
 # Network Policy (#135)
 # ─────────────────────────────────────────────────────────────────────────────────
@@ -229,7 +236,7 @@ max_subagents = 10 # optional (1-20)
 # default = "prompt"     # allow | deny | prompt
 # allow = ["api.deepseek.com", "github.com", ".githubusercontent.com"]
 # deny = []
-# audit = true            # one line per call to ~/.deepseek/audit.log
+# audit = true            # one line per call to ~/.xiaomimimo/audit.log
 
 # ─────────────────────────────────────────────────────────────────────────────────
 # Skills (#140)
@@ -400,7 +407,7 @@ default_text_model = "deepseek-ai/deepseek-v4-pro"
 # Each turn the TUI takes a `pre-turn:<seq>` and `post-turn:<seq>` snapshot of
 # your workspace into a side-git repo at:
 #
-#     ~/.deepseek/snapshots/<project_hash>/<worktree_hash>/.git
+#     ~/.xiaomimimo/snapshots/<project_hash>/<worktree_hash>/.git
 #
 # Your own `.git` is never touched — `--git-dir` and `--work-tree` are always
 # set together when shelling out to git. Use `/restore N` (slash command) or
@@ -458,7 +465,7 @@ default_text_model = "deepseek-ai/deepseek-v4-pro"
 # Those vars are merged into the spawned process environment (later hooks
 # override earlier ones). Use this for ephemeral credentials, per-skill
 # PATH adjustments, or short-lived tokens. The resolved KEY names (NEVER
-# values) are written to `~/.deepseek/audit.log` so each session can be
+# values) are written to `~/.xiaomimimo/audit.log` so each session can be
 # reconciled later. Hook failure / timeout simply contributes no vars —
 # it does not abort the shell call.
 #

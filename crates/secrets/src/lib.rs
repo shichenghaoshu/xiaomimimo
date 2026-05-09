@@ -47,7 +47,7 @@ pub enum SecretsError {
 }
 
 /// Abstract secret store; concrete implementations may use the OS
-/// keyring, a JSON file under `~/.deepseek/secrets/`, or an in-memory
+/// keyring, a JSON file under `~/.xiaomimimo/secrets/`, or an in-memory
 /// map (tests).
 pub trait KeyringStore: Send + Sync {
     /// Read a secret. Returns `Ok(None)` if no entry exists.
@@ -242,7 +242,8 @@ impl FileKeyringStore {
         Self { path: path.into() }
     }
 
-    /// Default path: `<home>/.deepseek/secrets/secrets.json`. Honours
+    /// Default path: `<home>/.xiaomimimo/secrets/secrets.json` (falls back to
+    /// `<home>/.deepseek/secrets/secrets.json` for legacy installs). Honours
     /// `HOME` (Unix) and `USERPROFILE` (Windows) via the `dirs` crate.
     pub fn default_path() -> Result<PathBuf, SecretsError> {
         let home = dirs::home_dir().ok_or_else(|| {
@@ -251,7 +252,12 @@ impl FileKeyringStore {
                 "could not resolve home directory for FileKeyringStore",
             ))
         })?;
-        Ok(home.join(".deepseek").join("secrets").join("secrets.json"))
+        let new_path = home.join(".xiaomimimo").join("secrets").join("secrets.json");
+        let legacy_path = home.join(".deepseek").join("secrets").join("secrets.json");
+        if !new_path.exists() && legacy_path.exists() {
+            return Ok(legacy_path);
+        }
+        Ok(new_path)
     }
 
     /// Path used for storage.
@@ -345,7 +351,7 @@ impl KeyringStore for FileKeyringStore {
     }
 
     fn backend_name(&self) -> &'static str {
-        "file-based (~/.deepseek/secrets/)"
+        "file-based (~/.xiaomimimo/secrets/)"
     }
 }
 
@@ -396,7 +402,7 @@ impl Secrets {
     /// Construct the platform-appropriate default backend. On platforms
     /// where an OS keyring backend is reachable this returns
     /// [`DefaultKeyringStore`]; otherwise it falls back to
-    /// [`FileKeyringStore`] under `~/.deepseek/secrets/`.
+    /// [`FileKeyringStore`] under `~/.xiaomimimo/secrets/`.
     pub fn auto_detect() -> Self {
         let default_store = DefaultKeyringStore::default();
         match default_store.probe() {
@@ -474,6 +480,7 @@ pub fn env_for(name: &str) -> Option<String> {
         "vllm" | "v-llm" => &["VLLM_API_KEY"],
         "ollama" | "ollama-local" => &["OLLAMA_API_KEY"],
         "openai" => &["OPENAI_API_KEY"],
+        "xiaomi" | "xiaomimimo" | "mimo" => &["XIAOMI_API_KEY"],
         _ => return None,
     };
     for var in candidates {
@@ -512,6 +519,7 @@ mod tests {
             "VLLM_API_KEY",
             "OLLAMA_API_KEY",
             "OPENAI_API_KEY",
+            "XIAOMI_API_KEY",
         ] {
             // Safety: tests serialise on env_lock(); the broader
             // workspace has the same pattern in `crates/config`.

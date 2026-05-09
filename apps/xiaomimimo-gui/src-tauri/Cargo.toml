@@ -1,0 +1,27 @@
+[package]
+name = "xiaomimimo-gui"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Desktop GUI for xiaomimimo AI assistant"
+license = "MIT"
+
+[lib]
+name = "xiaomimimo_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.49.0", features = ["full"] }
+uuid = { version = "1.11", features = ["v4"] }
+chrono = { version = "0.4.43", features = ["serde"] }
+deepseek-config = { path = "../../../crates/config" }
+deepseek-secrets = { path = "../../../crates/secrets" }
+dirs = "6.0.0"
+reqwest = { version = "0.13.1", default-features = false, features = ["json", "rustls"] }
+toml = "0.9"

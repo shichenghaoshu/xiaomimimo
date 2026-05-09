@@ -37,11 +37,14 @@ pub struct HeaderData<'a> {
     /// Short label for the current reasoning-effort tier (e.g. "max", "high",
     /// "off"). Rendered as a chip when space allows.
     pub reasoning_effort_label: Option<&'a str>,
-    /// Short label for the active provider (e.g. "NIM"). When `None` (the
-    /// default-DeepSeek case), no provider chip is rendered. Surfaces the
+    /// Short label for the active provider (e.g. "NIM", "MiMo"). When `None`
+    /// (the default-DeepSeek case), no provider chip is rendered. Surfaces the
     /// fact that requests are going somewhere other than DeepSeek's API so
     /// it's visible at a glance after a `/provider nvidia-nim`.
     pub provider_label: Option<&'a str>,
+    /// Estimated cache hit rate (0.0–1.0) based on stable prefix ratio.
+    /// Displayed as a chip when ≥ 0.70.
+    pub cache_hit_estimate: Option<f64>,
 }
 
 impl<'a> HeaderData<'a> {
@@ -66,6 +69,7 @@ impl<'a> HeaderData<'a> {
             last_prompt_tokens: None,
             reasoning_effort_label: None,
             provider_label: None,
+            cache_hit_estimate: None,
         }
     }
 
@@ -81,6 +85,13 @@ impl<'a> HeaderData<'a> {
     #[must_use]
     pub fn with_provider(mut self, label: Option<&'a str>) -> Self {
         self.provider_label = label;
+        self
+    }
+
+    /// Attach a cache-hit estimate (0.0–1.0). Rendered as a chip when ≥ 0.70.
+    #[must_use]
+    pub fn with_cache_estimate(mut self, estimate: Option<f64>) -> Self {
+        self.cache_hit_estimate = estimate;
         self
     }
 
@@ -179,6 +190,16 @@ impl<'a> HeaderWidget<'a> {
         }
     }
 
+    fn fmt_tokens(n: u32) -> String {
+        if n >= 1_000_000 {
+            format!("{:.1}M", n as f64 / 1_000_000.0)
+        } else if n >= 1_000 {
+            format!("{}K", n / 1_000)
+        } else {
+            n.to_string()
+        }
+    }
+
     fn context_signal_spans(&self, show_percent: bool) -> Vec<Span<'static>> {
         let Some(percent) = self.context_percent() else {
             return Vec::new();
@@ -191,6 +212,14 @@ impl<'a> HeaderWidget<'a> {
         let empty = CONTEXT_SIGNAL_WIDTH.saturating_sub(filled);
 
         let mut spans = Vec::new();
+        // Show token count: "184K/1M"
+        if let (Some(used), Some(max)) = (self.data.last_prompt_tokens, self.data.context_window) {
+            spans.push(Span::styled(
+                format!("{}/{}", Self::fmt_tokens(used), Self::fmt_tokens(max)),
+                Style::default().fg(palette::TEXT_HINT),
+            ));
+            spans.push(Span::raw(" "));
+        }
         if show_percent {
             spans.push(Span::styled(
                 format!("{percent:.0}%"),
@@ -230,6 +259,25 @@ impl<'a> HeaderWidget<'a> {
             Style::default()
                 .fg(palette::DEEPSEEK_SKY)
                 .add_modifier(Modifier::BOLD),
+        )]
+    }
+
+    fn cache_chip_spans(&self) -> Vec<Span<'static>> {
+        let Some(estimate) = self.data.cache_hit_estimate else {
+            return Vec::new();
+        };
+        if estimate < 0.70 {
+            return Vec::new();
+        }
+        let pct = (estimate * 100.0).round() as u8;
+        let color = if estimate >= 0.85 {
+            palette::STATUS_SUCCESS
+        } else {
+            palette::TEXT_HINT
+        };
+        vec![Span::styled(
+            format!("cache {pct}%"),
+            Style::default().fg(color),
         )]
     }
 
@@ -280,8 +328,17 @@ impl<'a> HeaderWidget<'a> {
             spans.extend(effort_spans);
         }
 
-        if self.data.is_streaming {
+        let cache_spans = self.cache_chip_spans();
+        let has_cache = !cache_spans.is_empty();
+        if has_cache {
             if has_effort || has_provider {
+                spans.push(Span::raw("  "));
+            }
+            spans.extend(cache_spans);
+        }
+
+        if self.data.is_streaming {
+            if has_effort || has_provider || has_cache {
                 spans.push(Span::raw("  "));
             }
             spans.push(Span::styled(

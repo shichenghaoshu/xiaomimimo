@@ -659,7 +659,7 @@ impl McpConnection {
             "params": {
                 "protocolVersion": "2024-11-05",
                 "clientInfo": {
-                    "name": "deepseek-tui",
+                    "name": "xiaomimimo-tui",
                     "version": env!("CARGO_PKG_VERSION")
                 },
                 "capabilities": {

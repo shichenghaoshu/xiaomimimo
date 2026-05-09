@@ -42,6 +42,7 @@ pub const DEFAULT_VLLM_FLASH_MODEL: &str = "deepseek-ai/DeepSeek-V4-Flash";
 pub const DEFAULT_VLLM_BASE_URL: &str = "http://localhost:8000/v1";
 pub const DEFAULT_OLLAMA_MODEL: &str = "deepseek-coder:1.3b";
 pub const DEFAULT_OLLAMA_BASE_URL: &str = "http://localhost:11434/v1";
+pub const DEFAULT_XIAOMI_BASE_URL: &str = "https://api.xiaomimimo.com/v1";
 /// Legacy `deepseek-cn` provider alias.
 ///
 /// DeepSeek's official API host is the same worldwide. Keep this alias for
@@ -72,6 +73,7 @@ pub enum ApiProvider {
     Sglang,
     Vllm,
     Ollama,
+    Xiaomi,
 }
 
 impl ApiProvider {
@@ -90,6 +92,7 @@ impl ApiProvider {
             "sglang" | "sg-lang" => Some(Self::Sglang),
             "vllm" | "v-llm" => Some(Self::Vllm),
             "ollama" | "ollama-local" => Some(Self::Ollama),
+            "xiaomi" | "xiaomimimo" | "mimo" => Some(Self::Xiaomi),
             _ => None,
         }
     }
@@ -107,6 +110,7 @@ impl ApiProvider {
             Self::Sglang => "sglang",
             Self::Vllm => "vllm",
             Self::Ollama => "ollama",
+            Self::Xiaomi => "xiaomi",
         }
     }
 
@@ -124,6 +128,7 @@ impl ApiProvider {
             Self::Sglang => "SGLang",
             Self::Vllm => "vLLM",
             Self::Ollama => "Ollama",
+            Self::Xiaomi => "Xiaomi MiMo",
         }
     }
 
@@ -140,6 +145,7 @@ impl ApiProvider {
             Self::Sglang,
             Self::Vllm,
             Self::Ollama,
+            Self::Xiaomi,
         ]
     }
 }
@@ -212,6 +218,26 @@ pub fn provider_capability(provider: ApiProvider, resolved_model: &str) -> Provi
             context_window: crate::models::LEGACY_DEEPSEEK_CONTEXT_WINDOW_TOKENS,
             max_output: 4096,
             thinking_supported: false,
+            cache_telemetry_supported: false,
+            request_payload_mode: RequestPayloadMode::ChatCompletions,
+            alias_deprecation: None,
+        };
+    }
+
+    if matches!(provider, ApiProvider::Xiaomi) {
+        let (ctx, max_out, reasoning) = match resolved_model.to_ascii_lowercase().as_str() {
+            "mimo-v2.5" | "mimo-v2.5-flash" | "mimo-flash" => (262_144, 8_192, true),
+            "mimo-v2.5-pro" | "mimo-v2-pro" | "mimo-pro" => (1_048_576, 32_768, true),
+            "mimo-v2-omni" | "mimo-v2.5-omni" | "mimo-omni" => (262_144, 32_768, true),
+            "mimo-v2.5-tts" | "mimo-v2-tts" | "mimo-tts" => (8_192, 4_096, false),
+            _ => (262_144, 8_192, false),
+        };
+        return ProviderCapability {
+            provider,
+            resolved_model: resolved_model.to_string(),
+            context_window: ctx,
+            max_output: max_out,
+            thinking_supported: reasoning,
             cache_telemetry_supported: false,
             request_payload_mode: RequestPayloadMode::ChatCompletions,
             alias_deprecation: None,
@@ -330,7 +356,10 @@ pub fn normalize_model_name(model: &str) -> Option<String> {
     }
 
     let normalized = trimmed.to_ascii_lowercase();
-    if !normalized.starts_with("deepseek") && !normalized.contains("/deepseek") {
+    if !normalized.starts_with("deepseek")
+        && !normalized.contains("/deepseek")
+        && !normalized.starts_with("mimo")
+    {
         return None;
     }
 
@@ -369,7 +398,7 @@ pub struct TuiConfig {
     /// empty `Some(vec![])` means "show nothing in the footer".
     ///
     /// Edited interactively via `/statusline`; persisted to `tui.status_items`
-    /// in `~/.deepseek/config.toml`.
+    /// in `~/.xiaomimimo/config.toml` (legacy: `~/.deepseek/config.toml`).
     pub status_items: Option<Vec<StatusItem>>,
     /// Emit OSC 8 hyperlink escape sequences around URLs in the transcript so
     /// supporting terminals (iTerm2, Terminal.app 13+, Ghostty, Kitty,
@@ -1040,6 +1069,8 @@ pub struct ProvidersConfig {
     pub vllm: ProviderConfig,
     #[serde(default)]
     pub ollama: ProviderConfig,
+    #[serde(default)]
+    pub xiaomi: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -1099,7 +1130,7 @@ impl Config {
             && ApiProvider::parse(provider).is_none()
         {
             anyhow::bail!(
-                "Invalid provider '{provider}': expected deepseek, deepseek-cn, nvidia-nim, openai, openrouter, novita, fireworks, sglang, vllm, or ollama."
+                "Invalid provider '{provider}': expected deepseek, deepseek-cn, nvidia-nim, openai, openrouter, novita, fireworks, sglang, vllm, ollama, or xiaomi."
             );
         }
         if let Some(ref key) = self.api_key
@@ -1222,6 +1253,7 @@ impl Config {
             ApiProvider::Sglang => &providers.sglang,
             ApiProvider::Vllm => &providers.vllm,
             ApiProvider::Ollama => &providers.ollama,
+            ApiProvider::Xiaomi => &providers.xiaomi,
         })
     }
 
@@ -1285,6 +1317,7 @@ impl Config {
             ApiProvider::Sglang => DEFAULT_SGLANG_MODEL,
             ApiProvider::Vllm => DEFAULT_VLLM_MODEL,
             ApiProvider::Ollama => DEFAULT_OLLAMA_MODEL,
+            ApiProvider::Xiaomi => "mimo-v2.5-pro",
         }
         .to_string()
     }
@@ -1313,7 +1346,8 @@ impl Config {
             | ApiProvider::Fireworks
             | ApiProvider::Sglang
             | ApiProvider::Vllm
-            | ApiProvider::Ollama => None,
+            | ApiProvider::Ollama
+            | ApiProvider::Xiaomi => None,
         };
         let base = provider_base.or(root_base).unwrap_or_else(|| {
             match provider {
@@ -1327,6 +1361,7 @@ impl Config {
                 ApiProvider::Sglang => DEFAULT_SGLANG_BASE_URL,
                 ApiProvider::Vllm => DEFAULT_VLLM_BASE_URL,
                 ApiProvider::Ollama => DEFAULT_OLLAMA_BASE_URL,
+                ApiProvider::Xiaomi => DEFAULT_XIAOMI_BASE_URL,
             }
             .to_string()
         });
@@ -1358,6 +1393,7 @@ impl Config {
             ApiProvider::Sglang => "sglang",
             ApiProvider::Vllm => "vllm",
             ApiProvider::Ollama => "ollama",
+            ApiProvider::Xiaomi => "xiaomi",
         };
 
         // 0. DeepSeek compatibility slot. The legacy top-level `api_key`
@@ -1401,28 +1437,38 @@ impl Config {
                    • export DEEPSEEK_API_KEY=<your-key>      (current shell only;\n\
                      also note: zsh users — exports in ~/.zshrc only reach interactive\n\
                      shells, prefer ~/.zshenv for everything)\n\
-                   • api_key = \"<your-key>\"  in ~/.deepseek/config.toml"
+                   • api_key = \"<your-key>\"  in ~/.xiaomimimo/config.toml"
             ),
             ApiProvider::NvidiaNim => anyhow::bail!(
                 "NVIDIA NIM API key not found. Run 'deepseek auth set --provider nvidia-nim', \
-                 set NVIDIA_API_KEY/NVIDIA_NIM_API_KEY, or save api_key in ~/.deepseek/config.toml \
+                 set NVIDIA_API_KEY/NVIDIA_NIM_API_KEY, or save api_key in ~/.xiaomimimo/config.toml \
                  with provider = \"nvidia-nim\"."
             ),
             ApiProvider::Openai => anyhow::bail!(
                 "OpenAI-compatible API key not found. Run 'deepseek auth set --provider openai', \
-                 set OPENAI_API_KEY, or add [providers.openai] api_key in ~/.deepseek/config.toml."
+                 set OPENAI_API_KEY, or add [providers.openai] api_key in ~/.xiaomimimo/config.toml."
             ),
             ApiProvider::Openrouter => anyhow::bail!(
                 "OpenRouter API key not found. Run 'deepseek auth set --provider openrouter', \
-                 set OPENROUTER_API_KEY, or add [providers.openrouter] api_key in ~/.deepseek/config.toml."
+                 set OPENROUTER_API_KEY, or add [providers.openrouter] api_key in ~/.xiaomimimo/config.toml."
             ),
             ApiProvider::Novita => anyhow::bail!(
                 "Novita API key not found. Run 'deepseek auth set --provider novita', \
-                 set NOVITA_API_KEY, or add [providers.novita] api_key in ~/.deepseek/config.toml."
+                 set NOVITA_API_KEY, or add [providers.novita] api_key in ~/.xiaomimimo/config.toml."
             ),
             ApiProvider::Fireworks => anyhow::bail!(
                 "Fireworks AI API key not found. Run 'deepseek auth set --provider fireworks', \
-                 set FIREWORKS_API_KEY, or add [providers.fireworks] api_key in ~/.deepseek/config.toml."
+                 set FIREWORKS_API_KEY, or add [providers.fireworks] api_key in ~/.xiaomimimo/config.toml."
+            ),
+            ApiProvider::Xiaomi => anyhow::bail!(
+                "Xiaomi MiMo API key not found.\n\
+                 \n\
+                 1. Get a key:  https://api.xiaomimimo.com\n\
+                 2. Save it:    xiaomimimo auth set --provider xiaomi\n\
+                 \n\
+                 Alternatives:\n\
+                   • export XIAOMI_API_KEY=<your-key>\n\
+                   • add [providers.xiaomi] api_key in ~/.xiaomimimo/config.toml"
             ),
             // Self-hosted deployments commonly run without auth on localhost.
             // Return an empty key and let the client omit the Authorization header.
@@ -1665,7 +1711,17 @@ fn effective_home_dir() -> Option<PathBuf> {
 }
 
 fn home_config_path() -> Option<PathBuf> {
-    effective_home_dir().map(|home| home.join(".deepseek").join("config.toml"))
+    let home = effective_home_dir()?;
+    let new_path = home.join(".xiaomimimo").join("config.toml");
+    let legacy_path = home.join(".deepseek").join("config.toml");
+    // Auto-migrate from legacy directory on first run
+    if !new_path.exists() && legacy_path.exists() {
+        if let Some(parent) = new_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+            let _ = std::fs::copy(&legacy_path, &new_path);
+        }
+    }
+    Some(new_path)
 }
 
 #[must_use]
@@ -1746,7 +1802,9 @@ fn canonicalize_or_keep(path: &Path) -> PathBuf {
 }
 
 fn env_config_path() -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("DEEPSEEK_CONFIG_PATH") {
+    if let Ok(path) = std::env::var("XIAOMIMIMO_CONFIG_PATH")
+        .or_else(|_| std::env::var("DEEPSEEK_CONFIG_PATH"))
+    {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
             return Some(expand_path(trimmed));
@@ -1829,7 +1887,7 @@ fn default_managed_config_path() -> Option<PathBuf> {
     }
     #[cfg(not(unix))]
     {
-        effective_home_dir().map(|home| home.join(".deepseek").join("managed_config.toml"))
+        effective_home_dir().map(|home| home.join(".xiaomimimo").join("managed_config.toml"))
     }
 }
 
@@ -1881,6 +1939,13 @@ fn default_memory_path() -> Option<PathBuf> {
 fn apply_env_overrides(config: &mut Config) {
     if let Ok(value) = std::env::var("DEEPSEEK_PROVIDER") {
         config.provider = Some(value);
+    }
+    // Auto-detect Xiaomi provider when XIAOMI_API_KEY is set but DEEPSEEK_API_KEY is not.
+    if config.api_provider() == ApiProvider::Deepseek
+        && std::env::var("XIAOMI_API_KEY").is_ok_and(|k| !k.trim().is_empty())
+        && !std::env::var("DEEPSEEK_API_KEY").is_ok_and(|k| !k.trim().is_empty())
+    {
+        config.provider = Some("xiaomi".to_string());
     }
     if let Ok(value) = std::env::var("DEEPSEEK_BASE_URL") {
         match config.api_provider() {
@@ -1977,6 +2042,30 @@ fn apply_env_overrides(config: &mut Config) {
             .vllm
             .base_url = Some(value);
     }
+    if let Ok(value) = std::env::var("XIAOMI_BASE_URL")
+        && !value.trim().is_empty()
+    {
+        config
+            .providers
+            .get_or_insert_with(ProvidersConfig::default)
+            .xiaomi
+            .base_url = Some(value);
+    }
+    // Auto-detect Xiaomi base URL from API key prefix when not explicitly set:
+    //   tp-* → Token Plan,  sk-* / other → Regular API
+    if config.api_provider() == ApiProvider::Xiaomi {
+        let providers = config
+            .providers
+            .get_or_insert_with(ProvidersConfig::default);
+        if providers.xiaomi.base_url.is_none() {
+            if let Some(key) = providers.xiaomi.api_key.as_deref()
+                && key.trim().starts_with("tp-")
+            {
+                providers.xiaomi.base_url =
+                    Some("https://token-plan-cn.xiaomimimo.com/v1".to_string());
+            }
+        }
+    }
     if let Ok(value) = std::env::var("DEEPSEEK_HTTP_HEADERS")
         && let Ok(headers) = parse_http_headers(&value)
         && !headers.is_empty()
@@ -2000,6 +2089,7 @@ fn apply_env_overrides(config: &mut Config) {
             ApiProvider::Sglang => &mut providers.sglang,
             ApiProvider::Vllm => &mut providers.vllm,
             ApiProvider::Ollama => &mut providers.ollama,
+            ApiProvider::Xiaomi => &mut providers.xiaomi,
         };
         let mut provider_headers = entry.http_headers.clone().unwrap_or_default();
         provider_headers.extend(headers);
@@ -2280,7 +2370,7 @@ fn normalize_model_for_provider(provider: ApiProvider, model: &str) -> Option<St
 }
 
 fn provider_passes_model_through(provider: ApiProvider) -> bool {
-    matches!(provider, ApiProvider::Openai | ApiProvider::Ollama)
+    matches!(provider, ApiProvider::Openai | ApiProvider::Ollama | ApiProvider::Xiaomi)
 }
 
 fn provider_entry_uses_custom_base_url(provider: ApiProvider, entry: &ProviderConfig) -> bool {
@@ -2302,6 +2392,7 @@ fn default_base_url_for_provider(provider: ApiProvider) -> &'static str {
         ApiProvider::Sglang => DEFAULT_SGLANG_BASE_URL,
         ApiProvider::Vllm => DEFAULT_VLLM_BASE_URL,
         ApiProvider::Ollama => DEFAULT_OLLAMA_BASE_URL,
+        ApiProvider::Xiaomi => DEFAULT_XIAOMI_BASE_URL,
     }
 }
 
@@ -2502,6 +2593,7 @@ fn merge_providers(
             sglang: merge_provider_config(base.sglang, override_cfg.sglang),
             vllm: merge_provider_config(base.vllm, override_cfg.vllm),
             ollama: merge_provider_config(base.ollama, override_cfg.ollama),
+            xiaomi: merge_provider_config(base.xiaomi, override_cfg.xiaomi),
         }),
     }
 }
@@ -2923,6 +3015,7 @@ pub fn active_provider_has_env_api_key(config: &Config) -> bool {
         ApiProvider::Sglang => std::env::var("SGLANG_API_KEY").is_ok_and(|k| !k.trim().is_empty()),
         ApiProvider::Vllm => std::env::var("VLLM_API_KEY").is_ok_and(|k| !k.trim().is_empty()),
         ApiProvider::Ollama => std::env::var("OLLAMA_API_KEY").is_ok_and(|k| !k.trim().is_empty()),
+        ApiProvider::Xiaomi => std::env::var("XIAOMI_API_KEY").is_ok_and(|k| !k.trim().is_empty()),
     }
 }
 
@@ -2946,6 +3039,7 @@ pub fn has_api_key_for(config: &Config, provider: ApiProvider) -> bool {
         ApiProvider::Sglang => "SGLANG_API_KEY",
         ApiProvider::Vllm => "VLLM_API_KEY",
         ApiProvider::Ollama => "OLLAMA_API_KEY",
+        ApiProvider::Xiaomi => "XIAOMI_API_KEY",
     };
     if std::env::var(env_var).is_ok_and(|k| !k.trim().is_empty()) {
         return true;
@@ -3014,6 +3108,7 @@ pub fn save_api_key_for(provider: ApiProvider, api_key: &str) -> Result<PathBuf>
         ApiProvider::Sglang => "providers.sglang",
         ApiProvider::Vllm => "providers.vllm",
         ApiProvider::Ollama => "providers.ollama",
+        ApiProvider::Xiaomi => "providers.xiaomi",
     };
 
     // Parse existing TOML (or start fresh) so we can edit the right table
@@ -3048,6 +3143,7 @@ pub fn save_api_key_for(provider: ApiProvider, api_key: &str) -> Result<PathBuf>
         ApiProvider::Sglang => "sglang",
         ApiProvider::Vllm => "vllm",
         ApiProvider::Ollama => "ollama",
+        ApiProvider::Xiaomi => "xiaomi",
     };
     let entry = providers
         .entry(key_inside.to_string())
@@ -3195,7 +3291,7 @@ mod tests {
     impl EnvGuard {
         fn new(home: &Path) -> Self {
             let home_str = OsString::from(home.as_os_str());
-            let config_path = home.join(".deepseek").join("config.toml");
+            let config_path = home.join(".xiaomimimo").join("config.toml");
             let config_str = OsString::from(config_path.as_os_str());
             let home_prev = env::var_os("HOME");
             let userprofile_prev = env::var_os("USERPROFILE");
@@ -3422,7 +3518,7 @@ mod tests {
         let _guard = EnvGuard::new(&temp_root);
 
         let saved = save_api_key("test-key")?;
-        let expected = temp_root.join(".deepseek").join("config.toml");
+        let expected = temp_root.join(".xiaomimimo").join("config.toml");
         assert_eq!(saved, SavedCredential::ConfigFile(expected.clone()));
         assert_eq!(saved.describe(), expected.display().to_string());
 
@@ -3460,7 +3556,7 @@ mod tests {
         let created = ensure_config_file_exists(None)?.expect("should create config");
         let content = fs::read_to_string(&created)?;
 
-        assert_eq!(created, temp_root.join(".deepseek").join("config.toml"));
+        assert_eq!(created, temp_root.join(".xiaomimimo").join("config.toml"));
         assert!(content.contains("default_text_model = \"deepseek-v4-pro\""));
         assert!(content.contains("reasoning_effort = \"auto\""));
         assert!(!content.contains("api_key ="));
@@ -3488,7 +3584,7 @@ mod tests {
         assert!(!is_workspace_trusted(&workspace));
         let saved = save_workspace_trust(&workspace)?;
 
-        assert_eq!(saved, temp_root.join(".deepseek").join("config.toml"));
+        assert_eq!(saved, temp_root.join(".xiaomimimo").join("config.toml"));
         assert!(is_workspace_trusted(&workspace));
         assert!(!crate::tui::onboarding::needs_trust(&workspace));
         assert!(
@@ -3520,7 +3616,7 @@ mod tests {
         let _guard = EnvGuard::new(&temp_root);
         let workspace = temp_root.join("project");
         fs::create_dir_all(&workspace)?;
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         fs::create_dir_all(config_path.parent().unwrap())?;
         fs::write(
             &config_path,
@@ -3620,7 +3716,7 @@ mod tests {
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_dir = temp_root.join(".deepseek");
+        let config_dir = temp_root.join(".xiaomimimo");
         fs::create_dir_all(&config_dir)?;
         let config_path = config_dir.join("config.toml");
         fs::write(
@@ -3843,7 +3939,7 @@ api_key = "old-openrouter-key"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let home_config = temp_root.join(".deepseek").join("config.toml");
+        let home_config = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&home_config)?;
         fs::write(&home_config, "api_key = \"home-key\"\n")?;
 
@@ -3902,7 +3998,7 @@ api_key = "old-openrouter-key"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4188,7 +4284,7 @@ api_key = "old-openrouter-key"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4252,7 +4348,7 @@ http_headers = { "X-Model-Provider-Id" = "tongyi" }
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4306,7 +4402,7 @@ http_headers = { "X-Model-Provider-Id" = "from-file" }
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4450,7 +4546,7 @@ http_headers = { "X-Model-Provider-Id" = "from-file" }
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4691,7 +4787,7 @@ model = "glm-5"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4835,7 +4931,7 @@ model = "qwen2.5-coder:7b"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4869,7 +4965,7 @@ base_url = "https://or-table.example/v1"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -4905,7 +5001,7 @@ model = "DeepSeek-V4-Pro"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -5119,7 +5215,7 @@ api_key = "novita-table-key"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,
@@ -5156,7 +5252,7 @@ model = "deepseek-v4-pro"
         fs::create_dir_all(&temp_root)?;
         let _guard = EnvGuard::new(&temp_root);
 
-        let config_path = temp_root.join(".deepseek").join("config.toml");
+        let config_path = temp_root.join(".xiaomimimo").join("config.toml");
         ensure_parent_dir(&config_path)?;
         fs::write(
             &config_path,

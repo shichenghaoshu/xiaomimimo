@@ -837,10 +837,13 @@ impl StateStore {
 }
 
 fn default_state_db_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".deepseek")
-        .join("state.db")
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let new_path = home.join(".xiaomimimo").join("state.db");
+    let legacy_path = home.join(".deepseek").join("state.db");
+    if !new_path.exists() && legacy_path.exists() {
+        return legacy_path;
+    }
+    new_path
 }
 
 fn bool_to_i64(value: bool) -> i64 {

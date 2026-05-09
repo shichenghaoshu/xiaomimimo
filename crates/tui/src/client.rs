@@ -137,7 +137,10 @@ const RECOVERY_PROBE_COOLDOWN: Duration = Duration::from_secs(15);
 
 const DEFAULT_CLIENT_RATE_LIMIT_RPS: f64 = 8.0;
 const DEFAULT_CLIENT_RATE_LIMIT_BURST: f64 = 16.0;
-const ALLOW_INSECURE_HTTP_ENV: &str = "DEEPSEEK_ALLOW_INSECURE_HTTP";
+fn allow_insecure_http() -> bool {
+    std::env::var("XIAOMIMIMO_ALLOW_INSECURE_HTTP").is_ok()
+        || std::env::var("DEEPSEEK_ALLOW_INSECURE_HTTP").is_ok()
+}
 
 pub(super) const SSE_BACKPRESSURE_HIGH_WATERMARK: usize = 8 * 1024 * 1024; // 8 MB
 pub(super) const SSE_BACKPRESSURE_SLEEP_MS: u64 = 10;
@@ -331,24 +334,15 @@ fn validate_base_url_security(base_url: &str) -> Result<()> {
         return Ok(());
     }
 
-    if base_url.starts_with("http://")
-        && std::env::var(ALLOW_INSECURE_HTTP_ENV)
-            .ok()
-            .as_deref()
-            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-    {
-        logging::warn(format!(
-            "Using insecure HTTP base URL because {} is set",
-            ALLOW_INSECURE_HTTP_ENV
-        ));
+    if base_url.starts_with("http://") && allow_insecure_http() {
+        logging::warn("Using insecure HTTP base URL because XIAOMIMIMO_ALLOW_INSECURE_HTTP is set");
         return Ok(());
     }
 
     if base_url.starts_with("http://") {
         anyhow::bail!(
-            "Refusing insecure base URL '{}'. Use HTTPS or set {}=1 to override for trusted environments.",
+            "Refusing insecure base URL '{}'. Use HTTPS or set XIAOMIMIMO_ALLOW_INSECURE_HTTP=1 to override for trusted environments.",
             base_url,
-            ALLOW_INSECURE_HTTP_ENV
         );
     }
 
@@ -408,12 +402,13 @@ pub(super) fn api_url(base_url: &str, path: &str) -> String {
 
 // === DeepSeekClient ===
 
-/// Returns true when DEEPSEEK_FORCE_HTTP1 is set to a truthy value
+/// Returns true when XIAOMIMIMO_FORCE_HTTP1 (or legacy DEEPSEEK_FORCE_HTTP1) is set to a truthy value
 /// (`1`, `true`, `yes`, `on`, case-insensitive). Used by `build_http_client`
 /// to opt out of HTTP/2 entirely when DeepSeek's edge mishandles long-lived H2
 /// streams (#103). Anything else (unset, `0`, `false`, ...) leaves HTTP/2 on.
 fn force_http1_from_env() -> bool {
-    std::env::var("DEEPSEEK_FORCE_HTTP1")
+    std::env::var("XIAOMIMIMO_FORCE_HTTP1")
+        .or_else(|_| std::env::var("DEEPSEEK_FORCE_HTTP1"))
         .ok()
         .map(|v| v.trim().to_ascii_lowercase())
         .is_some_and(|v| matches!(v.as_str(), "1" | "true" | "yes" | "on"))
@@ -514,7 +509,7 @@ impl DeepSeekClient {
             .http2_keep_alive_timeout(Duration::from_secs(20))
             .min_tls_version(reqwest::tls::Version::TLS_1_2);
         if force_http1_from_env() {
-            logging::info("DEEPSEEK_FORCE_HTTP1=1 — pinning HTTP client to HTTP/1.1");
+            logging::info("XIAOMIMIMO_FORCE_HTTP1=1 — pinning HTTP client to HTTP/1.1");
             builder = builder.http1_only();
         }
         if let Ok(cert_path) = std::env::var("SSL_CERT_FILE")
@@ -827,7 +822,8 @@ pub(super) fn apply_reasoning_effort(
             | ApiProvider::Novita
             | ApiProvider::Fireworks
             | ApiProvider::Sglang
-            | ApiProvider::Vllm => {
+            | ApiProvider::Vllm
+            | ApiProvider::Xiaomi => {
                 body["thinking"] = json!({ "type": "disabled" });
             }
             ApiProvider::Openai | ApiProvider::Ollama => {}
@@ -844,7 +840,8 @@ pub(super) fn apply_reasoning_effort(
             | ApiProvider::Novita
             | ApiProvider::Fireworks
             | ApiProvider::Sglang
-            | ApiProvider::Vllm => {
+            | ApiProvider::Vllm
+            | ApiProvider::Xiaomi => {
                 body["reasoning_effort"] = json!("high");
                 body["thinking"] = json!({ "type": "enabled" });
             }
@@ -863,7 +860,8 @@ pub(super) fn apply_reasoning_effort(
             | ApiProvider::Novita
             | ApiProvider::Fireworks
             | ApiProvider::Sglang
-            | ApiProvider::Vllm => {
+            | ApiProvider::Vllm
+            | ApiProvider::Xiaomi => {
                 body["reasoning_effort"] = json!("max");
                 body["thinking"] = json!({ "type": "enabled" });
             }

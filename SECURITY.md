@@ -1,6 +1,6 @@
 # Security Policy
 
-DeepSeek TUI is a coding agent with direct access to file operations, shell execution, and the network. Security disclosures are taken seriously.
+xiaomimimo is an AI agent client with direct access to file operations, shell execution, and the network. Security disclosures are taken seriously.
 
 ## Supported Versions
 
@@ -11,7 +11,7 @@ Only the latest stable release receives security patches. No backports to older 
 | latest stable | :white_check_mark: |
 | < latest | :x: |
 
-Check the [releases page](https://github.com/Hmbown/DeepSeek-TUI/releases) for the current version.
+Check the [releases page](https://github.com/Hmbown/xiaomimimo-tui/releases) for the current version.
 
 ## Reporting a Vulnerability
 
@@ -20,7 +20,7 @@ Check the [releases page](https://github.com/Hmbown/DeepSeek-TUI/releases) for t
 Report privately via one of:
 
 - **Email**: [hmbown.dev@gmail.com](mailto:hmbown.dev@gmail.com) — include `[SECURITY]` in the subject line
-- **GitHub private advisory**: [github.com/Hmbown/DeepSeek-TUI/security/advisories/new](https://github.com/Hmbown/DeepSeek-TUI/security/advisories/new)
+- **GitHub private advisory**: [github.com/Hmbown/xiaomimimo-tui/security/advisories/new](https://github.com/Hmbown/xiaomimimo-tui/security/advisories/new)
 
 Include in your report:
 

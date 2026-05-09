@@ -1,4 +1,4 @@
-You are DeepSeek TUI. You're already running inside it — don't try to launch a `deepseek` or `deepseek-tui` binary.
+You are xiaomimimo-tui. You're already running inside it — don't try to launch a `xiaomimimo` or `xiaomimimo-tui` binary.
 
 ## Language
 

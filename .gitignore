@@ -66,8 +66,11 @@ project_overhaul_prompt.md
 **/session_*.json
 *.db
 
-# Companion app (tracked separately)
-apps/
+# Companion app build artifacts (source is tracked)
+apps/*/node_modules/
+apps/*/dist/
+apps/*/target/
+apps/*/.DS_Store
 
 # Claude Code runtime artifacts
 .claude/scheduled_tasks.lock

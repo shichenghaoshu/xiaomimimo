@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg-main: #0f1115;
+  --color-panel: #171a21;
+  --color-border: #2a2f3a;
+  --color-text: #e6e6e6;
+  --color-muted: #9ca3af;
+  --color-accent: #ff6900;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-running: #3b82f6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2f3a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3f4a; }
+
+/* ── Focus ring (accessibility) ── */
+*:focus-visible {
+  outline: 2px solid #ff6900;
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ── Message fade-in ── */
+@keyframes msg-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-msg-in {
+  animation: msg-slide-up 0.25s ease-out both;
+}
+
+/* ── Logo pulse ── */
+@keyframes logo-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,105,0,0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(255,105,0,0); }
+}
+.animate-logo-pulse {
+  animation: logo-pulse 2.5s ease-in-out infinite;
+}
+
+/* ── Step fade ── */
+@keyframes step-fade {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-step-in {
+  animation: step-fade 0.3s ease-out both;
+}
+
+/* ── Send button pulse ── */
+@keyframes send-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,105,0,0.4); }
+  50% { box-shadow: 0 0 0 5px rgba(255,105,0,0); }
+}
+.animate-send-pulse {
+  animation: send-pulse 2s ease-in-out infinite;
+}
+
+/* ── Fade in (generic) ── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
+}
+
+/* ── Expand collapse transition ── */
+.expandable-content {
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+.expandable-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+.expandable-content.expanded {
+  max-height: 600px;
+  opacity: 1;
+}
+
+/* ── Tab content transition ── */
+.tab-content-enter {
+  animation: fade-in 0.2s ease-out both;
+}

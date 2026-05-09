@@ -5326,15 +5326,22 @@ fn render(f: &mut Frame, app: &mut App) {
         ])
         .split(size);
 
+    // Pre-compute values for header rendering.
+    let sanitized_context_window = context_usage
+        .as_ref()
+        .map(|(_, max, _)| *max)
+        .or_else(|| crate::models::context_window_for_model(&app.model));
+    let sanitized_prompt_tokens = context_usage
+        .as_ref()
+        .and_then(|(used, _, _)| u32::try_from(*used).ok());
+    // Estimate cache hit rate: stable prefix (system prompt + tool specs ≈ 8K)
+    // divided by total prompt tokens. Only shown when ≥ 70%.
+    let cache_estimate = sanitized_prompt_tokens
+        .filter(|&t| t > 16_000)
+        .map(|t| (8_000.0 / f64::from(t)).clamp(0.10, 0.90));
+
     // Render header
     {
-        let sanitized_context_window = context_usage
-            .as_ref()
-            .map(|(_, max, _)| *max)
-            .or_else(|| crate::models::context_window_for_model(&app.model));
-        let sanitized_prompt_tokens = context_usage
-            .as_ref()
-            .and_then(|(used, _, _)| u32::try_from(*used).ok());
         let workspace_name = app
             .workspace
             .file_name()
@@ -5354,6 +5361,7 @@ fn render(f: &mut Frame, app: &mut App) {
             crate::config::ApiProvider::Sglang => Some("SGLang"),
             crate::config::ApiProvider::Vllm => Some("vLLM"),
             crate::config::ApiProvider::Ollama => Some("Ollama"),
+            crate::config::ApiProvider::Xiaomi => Some("MiMo"),
         };
         let header_data = HeaderData::new(
             app.mode,
@@ -5369,7 +5377,8 @@ fn render(f: &mut Frame, app: &mut App) {
             sanitized_prompt_tokens,
         )
         .with_reasoning_effort(Some(&effort_label))
-        .with_provider(provider_label);
+        .with_provider(provider_label)
+        .with_cache_estimate(cache_estimate);
         let header_widget = HeaderWidget::new(header_data);
         let buf = f.buffer_mut();
         header_widget.render(chunks[0], buf);
@@ -6005,6 +6014,7 @@ async fn apply_provider_picker_api_key(
             ApiProvider::Sglang => &mut providers.sglang,
             ApiProvider::Vllm => &mut providers.vllm,
             ApiProvider::Ollama => &mut providers.ollama,
+            ApiProvider::Xiaomi => &mut providers.xiaomi,
         };
         entry.api_key = Some(api_key);
     }

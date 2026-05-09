@@ -223,6 +223,19 @@ pub fn context_window_for_model(model: &str) -> Option<u32> {
         }
         return Some(LEGACY_DEEPSEEK_CONTEXT_WINDOW_TOKENS);
     }
+    if lower.starts_with("mimo") {
+        // MiMo-V2.5 series: Pro = 1M, Omni/Flash = 262K, TTS = 8K
+        if lower.contains("pro") && !lower.contains("omni") {
+            return Some(1_048_576);
+        }
+        if lower.contains("omni") || lower.contains("flash") {
+            return Some(262_144);
+        }
+        if lower.contains("tts") {
+            return Some(8_192);
+        }
+        return Some(262_144);
+    }
     if lower.contains("claude") {
         return Some(200_000);
     }

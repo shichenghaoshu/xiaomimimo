@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Terminal UI for DeepSeek"
-default-run = "deepseek-tui"
+default-run = "xiaomimimo-tui"
 
 [features]
 default = ["tui", "json", "toml"]
@@ -15,7 +15,7 @@ json = ["schemaui/json"]
 toml = ["schemaui/toml"]
 
 [[bin]]
-name = "deepseek-tui"
+name = "xiaomimimo-tui"
 path = "src/main.rs"
 
 [dependencies]

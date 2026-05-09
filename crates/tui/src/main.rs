@@ -167,7 +167,8 @@ struct Cli {
     #[arg(long = "fresh")]
     fresh: bool,
 
-    /// Skip loading project-level config from $WORKSPACE/.deepseek/config.toml
+    /// Skip loading project-level config from $WORKSPACE/.xiaomimimo/config.toml
+    /// (also checks legacy $WORKSPACE/.deepseek/config.toml)
     #[arg(long = "no-project-config")]
     no_project_config: bool,
 }
@@ -498,7 +499,7 @@ enum McpCommand {
     /// For the HTTP/SSE runtime API, use `deepseek serve --http` directly instead.
     #[command(
         name = "add-self",
-        long_about = "Register this DeepSeek binary as a local MCP stdio server.\n\nAdds a config entry to ~/.deepseek/mcp.json that launches `deepseek serve --mcp`\nvia the stdio transport. Other DeepSeek sessions (or any MCP client) can then\ndiscover and call tools exposed by this server.\n\nUse `deepseek serve --http` instead if you need the HTTP/SSE runtime API."
+        long_about = "Register this binary as a local MCP stdio server.\n\nAdds a config entry to ~/.xiaomimimo/mcp.json that launches `xiaomimimo serve --mcp`\nvia the stdio transport. Other sessions (or any MCP client) can then\ndiscover and call tools exposed by this server.\n\nUse `xiaomimimo serve --http` instead if you need the HTTP/SSE runtime API."
     )]
     AddSelf {
         /// Server name in mcp.json (default: "deepseek")
@@ -611,7 +612,7 @@ async fn main() -> Result<()> {
         tracing::error!(target: "panic", "Process panicked at {location}: {msg}");
         // Write crash dump best-effort
         if let Some(home) = dirs::home_dir() {
-            let crash_dir = home.join(".deepseek").join("crashes");
+            let crash_dir = home.join(".xiaomimimo").join("crashes");
             let _ = std::fs::create_dir_all(&crash_dir);
             use chrono::Utc;
             let ts = Utc::now().format("%Y%m%dT%H%M%S%.3fZ");
@@ -1094,7 +1095,7 @@ fn resolve_cors_origins(config: &Config, flag_origins: &[String]) -> Vec<String>
 }
 
 fn deepseek_home_dir() -> PathBuf {
-    dirs::home_dir().map_or_else(|| PathBuf::from(".deepseek"), |h| h.join(".deepseek"))
+    dirs::home_dir().map_or_else(|| PathBuf::from(".xiaomimimo"), |h| h.join(".xiaomimimo"))
 }
 
 /// Resolve the default tools directory. Mirrors `default_skills_dir` shape.
@@ -1379,12 +1380,15 @@ fn run_setup_status(config: &Config, workspace: &Path) -> Result<()> {
                 crate::config::ApiProvider::Ollama => {
                     ("OLLAMA_API_KEY", "deepseek auth set --provider ollama")
                 }
+                crate::config::ApiProvider::Xiaomi => {
+                    ("XIAOMI_API_KEY", "deepseek auth set --provider xiaomi --api-key \"...\"")
+                }
                 crate::config::ApiProvider::Deepseek | crate::config::ApiProvider::DeepseekCN => {
                     ("DEEPSEEK_API_KEY", "deepseek auth set --provider deepseek")
                 }
             };
             println!(
-                "  {} api_key: missing  (set {env_var} or `[providers.{}].api_key` in ~/.deepseek/config.toml; or run `{login_hint}`)",
+                "  {} api_key: missing  (set {env_var} or `[providers.{}].api_key` in ~/.xiaomimimo/config.toml; or run `{login_hint}`)",
                 "✗".truecolor(red_r, red_g, red_b),
                 match config.api_provider() {
                     crate::config::ApiProvider::NvidiaNim => "nvidia_nim",
@@ -1395,6 +1399,7 @@ fn run_setup_status(config: &Config, workspace: &Path) -> Result<()> {
                     crate::config::ApiProvider::Sglang => "sglang",
                     crate::config::ApiProvider::Vllm => "vllm",
                     crate::config::ApiProvider::Ollama => "ollama",
+                    crate::config::ApiProvider::Xiaomi => "xiaomi",
                     crate::config::ApiProvider::Deepseek
                     | crate::config::ApiProvider::DeepseekCN => "deepseek",
                 }
@@ -1557,7 +1562,7 @@ async fn run_doctor(config: &Config, workspace: &Path, config_path_override: Opt
     // Configuration summary
     println!("{}", "Configuration:".bold());
     let default_config_dir =
-        dirs::home_dir().map_or_else(|| PathBuf::from(".deepseek"), |h| h.join(".deepseek"));
+        dirs::home_dir().map_or_else(|| PathBuf::from(".xiaomimimo"), |h| h.join(".xiaomimimo"));
     let config_path = config_path_override
         .map(PathBuf::from)
         .or_else(|| {
@@ -1630,6 +1635,11 @@ async fn run_doctor(config: &Config, workspace: &Path, config_path_override: Opt
             "ollama",
             &["OLLAMA_API_KEY"][..],
         ),
+        (
+            crate::config::ApiProvider::Xiaomi,
+            "xiaomi",
+            &["XIAOMI_API_KEY"][..],
+        ),
     ] {
         let in_env = env_names.iter().any(|n| {
             std::env::var(n)
@@ -1663,7 +1673,7 @@ async fn run_doctor(config: &Config, workspace: &Path, config_path_override: Opt
             if in_config { "yes" } else { "no" }
         );
     }
-    println!("  · credential precedence: ~/.deepseek/config.toml, OS keyring, then env");
+    println!("  · credential precedence: ~/.xiaomimimo/config.toml, OS keyring, then env");
 
     let api_key_source = resolve_api_key_source(config);
     let has_api_key = if config.deepseek_api_key().is_ok() {
@@ -1694,7 +1704,7 @@ async fn run_doctor(config: &Config, workspace: &Path, config_path_override: Opt
             "✗".truecolor(red_r, red_g, red_b)
         );
         println!(
-            "    Run 'deepseek auth set --provider <name>' to save a key to ~/.deepseek/config.toml."
+            "    Run 'xiaomimimo auth set --provider <name>' to save a key to ~/.xiaomimimo/config.toml."
         );
         false
     };
@@ -2063,7 +2073,7 @@ async fn run_doctor(config: &Config, workspace: &Path, config_path_override: Opt
             );
         }
     }
-    let stash_path = dirs::home_dir().map(|h| h.join(".deepseek").join("composer_stash.jsonl"));
+    let stash_path = dirs::home_dir().map(|h| h.join(".xiaomimimo").join("composer_stash.jsonl"));
     if let Some(stash_path) = stash_path {
         let stash_count = crate::composer_stash::load_stash().len();
         if stash_path.exists() {
@@ -2121,7 +2131,7 @@ fn run_doctor_json(
     use serde_json::json;
 
     let default_config_dir =
-        dirs::home_dir().map_or_else(|| PathBuf::from(".deepseek"), |h| h.join(".deepseek"));
+        dirs::home_dir().map_or_else(|| PathBuf::from(".xiaomimimo"), |h| h.join(".xiaomimimo"));
     let config_path = config_path_override
         .map(PathBuf::from)
         .or_else(|| {
@@ -2316,10 +2326,10 @@ fn run_doctor_json(
             },
             "stash": {
                 "path": dirs::home_dir()
-                    .map(|h| h.join(".deepseek").join("composer_stash.jsonl").display().to_string())
+                    .map(|h| h.join(".xiaomimimo").join("composer_stash.jsonl").display().to_string())
                     .unwrap_or_default(),
                 "present": dirs::home_dir()
-                    .map(|h| h.join(".deepseek").join("composer_stash.jsonl"))
+                    .map(|h| h.join(".xiaomimimo").join("composer_stash.jsonl"))
                     .is_some_and(|p| p.exists()),
                 "count": crate::composer_stash::load_stash().len(),
             },

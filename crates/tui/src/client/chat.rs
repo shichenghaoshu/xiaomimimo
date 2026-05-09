@@ -118,8 +118,8 @@ impl DeepSeekClient {
             Err(_elapsed) => {
                 anyhow::bail!(
                     "SSE stream request did not receive response headers after {}s. \
-                     `deepseek doctor` can still pass when non-streaming requests work; \
-                     on Windows or proxy networks, try `DEEPSEEK_FORCE_HTTP1=1` and rerun `deepseek`.",
+                     `xiaomimimo doctor` can still pass when non-streaming requests work; \
+                     on Windows or proxy networks, try `XIAOMIMIMO_FORCE_HTTP1=1` and rerun `xiaomimimo`.",
                     open_timeout.as_secs()
                 );
             }
@@ -917,6 +917,7 @@ fn requires_reasoning_content(model: &str) -> bool {
         || lower.contains("-reasoning")
         || lower.contains("-thinking")
         || has_deepseek_r_series_marker(&lower)
+        || lower.starts_with("mimo-")
 }
 
 fn should_replay_reasoning_content(model: &str, effort: Option<&str>) -> bool {
