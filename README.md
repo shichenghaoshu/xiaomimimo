@@ -1,9 +1,5 @@
 # xiaomimimo · 小米 MiMo 原生 AI Agent 客户端
 
-<p align="center">
-  <img src="assets/poster.png" alt="Xiaomi MiMo Token Plan" width="600" />
-</p>
-
 > **Rust 原生 · 1M 上下文 · TUI + GUI 双端 · 小米 MiMo API 深度适配**
 
 **xiaomimimo** 是专为 [Xiaomi MiMo](https://api.xiaomimimo.com/v1) 深度优化的 Rust 原生 AI Agent 客户端。支持 TUI（终端）和 GUI（桌面）双模式，融合 Claude Desktop 式 Artifacts、MCP 扩展、TTS 语音交互、1M 上下文缓存优化和项目工作区能力。
@@ -178,6 +174,10 @@ model = "mimo-v2.5-pro"
 - **所有贡献者** — 参与测试、反馈和代码贡献
 
 ---
+
+<p align="center">
+  <img src="assets/poster.png" alt="Xiaomi MiMo 100T Token Plan" width="600" />
+</p>
 
 <p align="center">
   <sub>Made with 🦀 Rust · Powered by Xiaomi MiMo</sub>
